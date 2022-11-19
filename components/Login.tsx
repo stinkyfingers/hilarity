@@ -2,42 +2,63 @@ import React from 'react';
 import { Text, StyleSheet, Image, Button, View } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
-import * as AuthSession from 'expo-auth-session';
+import { setObject, getObject } from '../lib/storage';
+import { expoClientId } from '../Config';
+import { User } from '../lib/types';
 
+interface Props {
+    user: User,
+    setErr: (err: object) => void;
+}
 
 // https://www.youtube.com/watch?v=hmZm_jPvWWM
 
 WebBrowser.maybeCompleteAuthSession(); // allows auth session to complete and return results here;
 
-
-const Login = () => {
-    const [accessToken, setAccessToken] = React.useState('');
-    const [userInfo, setUserInfo] = React.useState();
+const Login = (props: Props) => {
+    const [accessToken, setAccessToken] = React.useState<string>();
+    const [userInfo, setUserInfo] = React.useState<User>();
     const [request, response, promptAsync] = Google.useAuthRequest({
         // TODO ios & android id
-        expoClientId: '520868981613-bi51vfbrtg89bkhd39licda6kl609cis.apps.googleusercontent.com',
+        // TODO expo client id in new google cloud project
+        expoClientId,
     });
+    
+    // set accessToken from google auth response
     React.useEffect(() => {
         if (response?.type === 'success') {
             setAccessToken(response.authentication?.accessToken || '')
+        } else {
+            response !== null && props.setErr(response);
         }
     }, [response]);
-    const getUserData = async() => {
-        const userInfoResponse = await fetch('https://www.googleapis.com/userinfo/v2/me', {
-            headers: { Authorization: `Bearer ${accessToken}` }
-        });
-        userInfoResponse.json().then(data => {
-            setUserInfo(data);
-        });
-    };
+    
+    // get user from google using accessToken
+    React.useEffect(() => {
+        if (!accessToken) return;
+        const getUserData = async() => {
+            const userInfoResponse = await fetch('https://www.googleapis.com/userinfo/v2/me', {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            userInfoResponse.json().then(data => {
+                setUserInfo(data);
+                setObject('user', data);
+            });
+        };
+        try {
+            getUserData();
+        } catch (err) {
+            props.setErr(err);
+        }
+    }, [accessToken]);
     
     const showUserInfo = () => {
-        if (userInfo) {
+        if (props.user) {
             return (
                 <View>
-                    <Text>{userInfo.name}</Text>
-                    <Text>{userInfo.email}</Text>
-                    <Image source={{ uri: userInfo.picture }} />
+                    <Text>{props.user.name}</Text>
+                    <Text>{props.user.email}</Text>
+                    <Image source={{ uri: props.user.picture }} />
                 </View>
             )
         }
@@ -46,11 +67,12 @@ const Login = () => {
     return (
         <View>
             {showUserInfo()}
-            <Button
-                title={accessToken ? 'Get User Info' : 'Login'}
-                onPress={accessToken ? getUserData : () => promptAsync({showInRecents: true})}
-            />
-            <Text>LOGIN!</Text>
+            {!props.user && (
+                <Button
+                    title={'Login'}
+                    onPress={() => promptAsync({showInRecents: true})}
+                />
+            )}
         </View>
     )
 };

@@ -1,0 +1,1 @@
+export const expoClientId = '520868981613-bi51vfbrtg89bkhd39licda6kl609cis.apps.googleusercontent.com';
